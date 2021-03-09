@@ -1,33 +1,46 @@
+require 'journey'
+
 class Oystercard
+  DEFAULT_MAXIMUM = 90
+  DEFAULT_MINIMUM = 1
 
-attr_reader :balance, :limit, :in_journey
+  attr_reader :balance, :default_maximum, :entry_station, :station_history, :exit_station, :current_journey
 
-  def initialize(balance = 0)
+  def initialize(balance = 0, default_maximum = DEFAULT_MAXIMUM)
     @balance = balance
-    @limit = 90
-    @in_journey = false
-    @minimum = 1
+    @default_maximum = default_maximum
+    @station_history = []
+    @current_journey = Journey.new
   end
 
-  def top_up(amount)
-    fail "Reached top up limit of 90" if (@balance += amount) >= 90
-    @balance
+  def top_up(money)
+    fail "Top-up exceeds the predetermined maximum" if @balance + money > @default_maximum
+    @balance += money
   end
 
-  def pay(fair)
-    fail "Insuficient funds" if (@balance -= fair) <= 0
-    @balance
+  def touch_in(station)
+    @current_journey.start_journey(station)
+    fail "Not enough money to touch in" if @balance < DEFAULT_MINIMUM
   end
 
-  def touch_in
-    fail 'Insufficient funds' if @balance <= @minimum
-    fail 'Card already in use' if @in_journey == true
-    @in_journey = true
+  def touch_out(station)
+    @current_journey.end_journey(station)
+    deduct(fare)
+    save_journey
   end
 
-  def touch_out(fair)
-    pay(fair) if @in_journey == true
-    @in_journey = false
+  def fare
+    @current_journey.complete? ? DEFAULT_MINIMUM : 6
   end
 
+  private
+
+  def save_journey
+    @station_history << @current_journey.complete_journey
+  end
+
+  def deduct(money)
+    fail "The deducted amount exceeds the total remaining balance" if @balance - money < 0
+    @balance -= money
+  end
 end

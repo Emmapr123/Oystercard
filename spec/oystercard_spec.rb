@@ -1,66 +1,67 @@
 require 'oystercard'
+require 'station'
+require 'journey'
 
 describe Oystercard do
-  let(:card) { Oystercard.new(0) }
-  let(:card2) { Oystercard.new(20) }
-  it { is_expected.to respond_to :balance }
+  let(:test_card) { Oystercard.new(20) }
+  let(:station) { Station.new }
+  let(:journey) { Journey.new }
+  it "has a balance of zero" do
+    expect(subject.balance).to eq(0)
+  end
 
-  it { is_expected.to respond_to(:top_up).with(1).argument }
+  it 'current_journey creates a journey om initialization' do
+    expect(subject.current_journey).to be_a Journey
+  end
 
-  describe '#top_up' do
+  it "station_history is empty on initialization" do
+    expect(subject.station_history).to eq []
+  end
 
-    it 'tops up the card balance with the amount ' do
-      expect(card.top_up(10)).to eq 10
-      expect(card.balance).to eq 10
+  describe 'top_up' do
+    it "will add money to the balance of the card" do
+      expect { subject.top_up 1 }.to change { subject.balance }.by 1
+    end
+    it "will return an error if the total would exceed the default maximum" do
+      expect { subject.top_up(1 + subject.default_maximum) }.to raise_error("Top-up exceeds the predetermined maximum")
     end
   end
 
-  describe '#limit' do
+  describe 'touch_in' do
 
-  it { is_expected.to respond_to :limit }
-  it 'raises an error if topping up over 90' do
-    expect { card.top_up(90) }.to raise_error('Reached top up limit of 90')
-  end
-
-  it 'raises an error if the balance exceeds 90' do
-    card_with_balance = Oystercard.new(50)
-    expect {card_with_balance.top_up(50) }.to raise_error('Reached top up limit of 90')
+    it 'will return an error if the card has less than £1 balance' do
+      expect { subject.touch_in(station) }.to raise_error("Not enough money to touch in")
     end
   end
 
-  describe '#pay' do
-    it { is_expected.to respond_to(:pay).with(1).argument }
-    it 'should pay for my fair' do
-      card_with_balance = Oystercard.new(10)
-      expect(card_with_balance.pay(2.40)).to eq 7.60
+  describe 'touch_out' do
+    it 'should update station history' do
+      expect { test_card.touch_out(station) }.to change { test_card.station_history.count }.by 1
     end
-    it 'raise an error if balance is too low' do
-      expect { card.pay(2.40) }.to raise_error('Insuficient funds')
+
+    it "touching out deducts the minimum fare" do
+      test_card.touch_in(station)
+      expect { test_card.touch_out(station) }.to change { test_card.balance }.by -Oystercard::DEFAULT_MINIMUM
+    end
+
+    it "will return an error if the deducted amount exceeds the total remaining" do
+      expect { subject.touch_out(station) }.to raise_error("The deducted amount exceeds the total remaining balance")
     end
   end
 
-  describe 'in_journey' do
-    it { is_expected.to respond_to :in_journey }
-  end
-
-  describe '#touch_in' do
-    it { is_expected.to respond_to :touch_in }
-    it 'is aware that it is in use' do
-      expect(card2.touch_in).to eq true
-    end
-    it 'cannot touch in when already in use' do
-      card2.touch_in
-      expect { card2.touch_in }.to raise_error 'Card already in use'
-    end
-    it 'wont let you toch in if your balance is too low' do
-      expect { card.touch_in }.to raise_error 'Insufficient funds'
+  describe 'save_journey' do
+    let(:entry_station) { Station.new }
+    it "saves the journey details as a hash" do
+      test_card.touch_in(entry_station)
+      test_card.touch_out(station)
+      expect( test_card.station_history ).to include( { :entry_station => entry_station, :exit_station => station } )
     end
   end
 
-  describe '#touch_out' do
-    it { is_expected.to respond_to(:touch_out).with(1).argument }
-    it 'is aware that it is out of use' do
-      expect(card.touch_out(2.40)).to eq false
+  describe 'fare' do
+    it { is_expected.to respond_to :fare }
+    it 'returns a fine if journey is incomplete' do
+      expect( test_card.fare ).to eq 6
     end
   end
 end
